@@ -26,6 +26,19 @@
       <source pool='{{ libvirt_volume_pool }}' volume='{{ item.name }}.qcow2'/>
       <target dev='{{ libvirt_diskdev }}' bus='{{ libvirt_diskbus }}'/>
     </disk>
+
+## Preference is to check for interfaces defined in the overcloud_nodes.interface
+## if not present, all the networks will be be attached except 'external'
+{% if item.interfaces is defined %}
+## 'external' need not be specified in overcloud.interfaces, rejectattr check is only for safer side
+{% for iface in item.interfaces|rejectattr('source', 'equalto', 'external') %}
+    <interface type='bridge'>
+      <mac address='{{ node_mac_map.get(item.name).get(iface.source) }}'/>
+      <source bridge='{{ networks|selectattr("name", "equalto", iface.source)|map(attribute="bridge")|join(",")  }}'/>
+      <model type='{{ iface.model|default("virtio") }}'/>
+    </interface>
+{% endfor %}
+{% else %}
 {% for network in networks|rejectattr('name', 'equalto', 'external') %}
     <interface type='bridge'>
       <mac address='{{ node_mac_map.get(item.name).get(network.name) }}'/>
@@ -33,6 +46,8 @@
       <model type='virtio'/>
     </interface>
 {% endfor %}
+{% endif %}
+
     <serial type='pty'/>
     <console type='pty'/>
 
